@@ -15,8 +15,6 @@
 # Examples:
 #     The test cases below call each search function on node 'S' and node 'A'
 # -----------------------------
-import heapq
-from collections import deque
 from queue import PriorityQueue
 
 # defines the connections of each notes where the values of the dict are a list of nodes that are conencted to the key-node
@@ -25,21 +23,22 @@ from queue import PriorityQueue
 adjacency_list = {
     "A": ["B", "E"],
     "B": ["A", "C", "F"],
-    "C": ["B", "S", "H"],
+    "K": ["J", "F", "H", "L", "N", "P"],
     "D": ["S", "L"],
+    "C": ["B", "S", "H"],
     "E": ["A", "F", "I"],
     "F": ["B", "E", "J", "K"],
     "G": ["M", "N", "Q"],
-    "H": ["C", "K", "L"],
+    "E": ["A", "F", "I"],
     "I": ["E", "J", "M"],
     "J": ["I", "K", "F", "N"],
-    "K": ["J", "F", "H", "L", "N", "P"],
+    "H": ["C", "K", "L"],
+    "N": ["J", "K", "P", "G"],
     "L": ["D", "K", "H", "Q"],
     "M": ["I", "G"],
-    "N": ["J", "K", "P", "G"],
-    "P": ["K", "N"],
     "Q": ["G", "L"],
-    "S": ["C", "D"]
+    "S": ["C", "D"],
+    "P": ["K", "N"],
 }
 
 # this gives the estimated cost of the cheapest path from the node to the goal given in problem description
