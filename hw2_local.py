@@ -1,91 +1,94 @@
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 def load_data(path="CreditCard.csv"):
 
-    df = pd.read_csv(path)  # read the dataset into a DataFrame
+    df = pd.read_csv(path)  # read the csv file into a pandas dataframe
 
-    # encode all the categorical values into numbers
+    # turn all string columns into numeric 0/1 values so we can do math
     x = pd.DataFrame({
-        "Gender": (df["Gender"] == "M").astype(int),       # 1 if male, 0 if female
-        "CarOwner": (df["CarOwner"] == "Y").astype(int),   # 1 if owns a car, 0 otherwise
-        "PropertyOwner": (df["PropertyOwner"] == "Y").astype(int), # 1 if owns property
-        "Children": df["#Children"].astype(float),         # number of kids (numeric)
-        "WorkPhone": df["WorkPhone"].astype(int),          # 1 if work phone, else 0
-        "Email": df["Email_ID"].astype(int),               # 1 if email, else 0
-    }).to_numpy(dtype=float)  # convert features to numpy array
+        "Gender": (df["Gender"] == "M").astype(int),       # male becomes 1, female becomes 0
+        "CarOwner": (df["CarOwner"] == "Y").astype(int),   # yes becomes 1, no becomes 0
+        "PropertyOwner": (df["PropertyOwner"] == "Y").astype(int), # same encoding for property
+        "Children": df["#Children"].astype(float),         # number of children already numeric
+        "WorkPhone": df["WorkPhone"].astype(int),          # keep work phone as 0 or 1
+        "Email": df["Email_ID"].astype(int),               # keep email as 0 or 1
+    }).to_numpy(dtype=float)  # finally turn the dataframe into a numpy array
 
-    # target (label) is whether their credit was approved (1) or denied (0)
+    # the output label is whether credit was approved (1) or denied (0)
     y = df["CreditApprove"].astype(float).to_numpy()
-    return x, y
+    return x, y  # return features and labels
 
 def error(w, x, y):
-    """Compute mean squared error er(w)."""
-    f = x @ w  # prediction = linear combination of features and weights
-    return np.mean((f - y) ** 2)  # squared difference between prediction and true value
+    """compute mean squared error for a weight vector w"""
+    f = x @ w  # prediction = dot product of inputs and weights
+    return np.mean((f - y) ** 2)  # average squared difference from the real answer
 
 def neighbor_oneflip(w):
     """
-    Generate all neighbors of w by flipping exactly one entry.
-    Example: [1,1,1] -> neighbors = [[-1,1,1], [1,-1,1], [1,1,-1]]
+    make a list of all neighbors of w that differ by one entry
+    example: [1,1,1] -> [[-1,1,1], [1,-1,1], [1,1,-1]]
     """
-    nbs = []  # will hold all neighbors
-    for j in range(len(w)):
-        v = w.copy()   # copy current weight vector
-        v[j] = -v[j]   # flip the j-th element (1 -> -1 or -1 -> 1)
-        nbs.append(v)  # add the new vector to neighbors list
+    nbs = []  # will store the neighbors
+    for j in range(len(w)):   # go through each position in w
+        v = w.copy()          # make a copy of w
+        v[j] = -v[j]          # flip the sign at position j
+        nbs.append(v)         # add this new vector to the neighbor list
     return nbs
 
-def hill_climb(x, y, max_rounds=1000, seed=0):
-    """
-    Hill climbing local search:
-    - Start from a random w ∈ {-1, +1}^6
-    - Look at all neighbors (1-flip away)
-    - Move to the neighbor if it reduces error
-    - Stop when no better neighbor exists
-    """
-    rng = np.random.default_rng(seed)  # set random generator for reproducibility
-    # pick a random starting point: each entry is -1 or +1
-    w = rng.choice([-1.0, 1.0], size=x.shape[1])
-    # keep track of errors after each round (for plotting)
-    errors = [error(w, x, y)]
+def hill_climb(x, y, max_rounds=1000, seed=None):
+    rng = np.random.default_rng(seed)  # random generator, controlled by seed
+    w = rng.choice([-1, 1], size=x.shape[1])  # pick a random starting weight vector
+    best_err = error(w, x, y)  # calculate error at the start
+    history = [best_err]       # keep track of error values as we search
 
-    # loop for a maximum number of rounds
+    # try improving up to max_rounds times
     for _ in range(max_rounds):
-        # calculate error for all neighbors
-        candidates = [(error(v, x, y), v) for v in neighbor_oneflip(w)]
-        # pick the neighbor with the smallest error
-        best_e, best_v = min(candidates, key=lambda t: t[0])
+        improved = False  # flag to check if we find any improvement this round
+        for i in range(len(w)):   # look at each position to flip
+            neighbor = w.copy()   # make a neighbor by flipping one position
+            neighbor[i] *= -1     # flip sign at index i
+            current_err = error(neighbor, x, y)  # calculate error of this neighbor
 
-        if best_e < errors[-1]:
-            # if best neighbor is better, move there
-            w = best_v
-            errors.append(best_e)  # record new best error
-        else:
-            # if no neighbor improves, we reached a local minimum
+            if current_err < best_err:  # if this neighbor is better
+                w = neighbor            # move to this neighbor
+                best_err = current_err  # update best error
+                history.append(best_err)  # save this new error in history
+                improved = True         # mark that we improved this round
+        if not improved:  # if no neighbor was better, we are stuck in a local minimum
             break
+    return w, np.array(history)  # return the best weights and the error history
 
-    # return the final weight vector and the history of errors
-    return w, np.array(errors)
+def multi_start_hill_climb(x, y, runs=20, max_rounds=1000):
+    """
+    run hill climbing several times with different random starts
+    return the solution with the longest history (most improvements)
+    """
+    best_w, best_history = None, []  # placeholders for best result
+    for seed in range(runs):  # try different random seeds
+        w, history = hill_climb(x, y, max_rounds=max_rounds, seed=seed)
+        if len(history) > len(best_history):  # keep the run that had more improvement steps
+            best_w, best_history = w, history
+    return best_w, np.array(best_history)
 
 if __name__ == "__main__":
-    # Step 1: load dataset
-    x, y = load_data("CreditCard.csv")
+    x, y = load_data()  # load dataset into features and labels
 
-    # Step 2: run hill climbing search
-    w_best, errs = hill_climb(x, y, max_rounds=1000, seed=0)
+    # run hill climbing many times and pick the best improvement path
+    w_best, errs = multi_start_hill_climb(x, y, runs=50, max_rounds=1000)
 
-    # Step 3: print the best solution found
+    # print the final best weight vector and its error
     print("Optimal w (local search):", w_best)
     print("Optimal er(w):", errs[-1])
 
-    # Step 4: plot the convergence (error vs. round of search)
+    # plot the error values over rounds to see convergence
     plt.figure()
     plt.plot(range(len(errs)), errs, marker="o")
-    plt.xlabel("Round of search")      # x-axis label
-    plt.ylabel("er(w)")                # y-axis label
-    plt.title("Hill Climbing Convergence (Local Search)")  # plot title
+    plt.xlabel("Round of search")
+    plt.ylabel("er(w)")
+    plt.title("Hill Climbing Convergence (Local Search)")
     plt.tight_layout()
-    plt.savefig("figure2_local.png", dpi=200)  # save figure to file
-    plt.show()  # display the figure
+    plt.savefig("figure2_local.png", dpi=200)  # save figure as image file
+    plt.show()  # also display the figure
